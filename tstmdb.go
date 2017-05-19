@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"flag"
 	"gopkg.in/mgo.v2"
+	"gopkg.in/mgo.v2/bson"
 	"log"
+	"math/rand"
 )
 
 var (
@@ -23,16 +25,28 @@ type DateForTest struct {
 	s	string
 }
 
+type MayCollect struct {
+	mgo.Collection
+}
+
 func main() {
-	var writeToDB chan DateForTest
+	writeToDB := make(chan DateForTest, 1000)
 
 	flag.Parse()
 
-	collect := initConnection(ip)
+	collect := MayCollect(initConnection(ip))
 	defer collect.Database.Session.Close()
 
 	go dataGenerator(writeToDB)
 
+	fmt.Println("Preparing the database...")
+	collect.insertToCollect(writeToDB)
+
+	fmt.Println("Finding in the database...")
+	collect.findInCollect()
+
+	fmt.Println("Deleting from the database...")
+	collect.deleteFromCollect()
 
 
 
@@ -40,16 +54,38 @@ func main() {
 
 }
 
-func insertToDB(db *mgo.Database, writeToDB <- chan typeCust) {
-	c := db.C("Connections")
+func (c *MayCollect)insertToCollect(writeToDB <- chan DateForTest) {
+
+	i := 1
 	for v := range writeToDB {
-		WG.Done()
+		if i > num { break }
 		err := c.Insert(v)
 		if err != nil {
-			CLog.PrintLog(true, err)
+			log.Fatalln(err)
 		}
+		i++
 	}
 	return
+}
+
+func (c *MayCollect)deleteFromCollect() {
+	var err error
+
+	del := num/10
+	for i :=1 ; i < del; i++ {
+		err = c.Remove(bson.M{"i":fmt.Sprint(indexGenerator(num))})
+		if err != nil { log.Fatalln(err)}
+	}
+}
+
+func (c *MayCollect)findInCollect() {
+	var rez DateForTest
+
+	del := num/10
+	for i :=1 ; i < del; i++ {
+		c.Find(bson.M{"i":fmt.Sprint(indexGenerator(num))}).One(&rez)
+
+	}
 }
 
 func findInCollection(c *mgo.Collection, q interface{}, r interface{}) {
@@ -74,8 +110,19 @@ func initConnection(ip string) (c *mgo.Collection) {
 
 func dataGenerator(writeToDB chan DateForTest) {
 	var d DateForTest
+	var i int64
+	i = 1
+	for {
+		if i > int64(num) { i = 1 }
+		d = DateForTest{i, "sdfsdfhsdgsfg"}
+		writeToDB <- d
+		i++
+	}
 
+	return
+}
 
-
-
+func indexGenerator(i int) (j int) {
+	rand.Seed(int64(i))
+	return rand.Intn(i)
 }
