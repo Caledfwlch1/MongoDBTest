@@ -12,12 +12,16 @@ import (
 var (
 	ip	string
 	num	int
+	ins	int
+	remove	bool
 )
 
 
 func init() {
-	flag.StringVar(&ip, "ip", "127.0.0.1", "ip-address")
-	flag.IntVar(&num, "n", 1000, "number of requests")
+	flag.StringVar(&ip, "ip", "127.0.0.1", "ip-address (default : 127.0.0.1)")
+	flag.IntVar(&num, "n", 1000, "number of requests (default: 1000)")
+	flag.IntVar(&ins, "i", 100, "number of inserts (default : 100)")
+	flag.BoolVar(&remove, "r", false, "remove database (default: false)")
 }
 
 type DateForTest struct {
@@ -26,7 +30,7 @@ type DateForTest struct {
 }
 
 type MayCollect struct {
-	mgo.Collection
+	*mgo.Collection
 }
 
 func main() {
@@ -34,31 +38,43 @@ func main() {
 
 	flag.Parse()
 
-	collect := MayCollect(initConnection(ip))
+	fmt.Println("Current settings:")
+	fmt.Println("ip-address: ", ip)
+	fmt.Println("number of requests: ", num)
+	fmt.Println("number of inserts: ", ins)
+	fmt.Println("remove database: ", remove)
+
+	fmt.Println("\nConnecting to the database...")
+	collect := MayCollect{initConnection(ip)}
 	defer collect.Database.Session.Close()
 
 	go dataGenerator(writeToDB)
 
 	fmt.Println("Preparing the database...")
-	collect.insertToCollect(writeToDB)
+	collect.insertToCollect(writeToDB, num)
 
 	fmt.Println("Finding in the database...")
-	collect.findInCollect()
+	collect.findInCollect(ins)
 
 	fmt.Println("Deleting from the database...")
-	collect.deleteFromCollect()
+	collect.deleteFromCollect(ins)
 
+	fmt.Println("Inserting to the database...")
+	collect.insertToCollect(writeToDB, ins)
 
+	if remove {
+		fmt.Println("Removing the database...")
+		collect.removeDataBase()
+	}
 
-
-
+	return
 }
 
-func (c *MayCollect)insertToCollect(writeToDB <- chan DateForTest) {
+func (c *MayCollect)insertToCollect(writeToDB <- chan DateForTest, n int) {
 
 	i := 1
 	for v := range writeToDB {
-		if i > num { break }
+		if i > n { break }
 		err := c.Insert(v)
 		if err != nil {
 			log.Fatalln(err)
@@ -68,33 +84,37 @@ func (c *MayCollect)insertToCollect(writeToDB <- chan DateForTest) {
 	return
 }
 
-func (c *MayCollect)deleteFromCollect() {
-	var err error
-
-	del := num/10
-	for i :=1 ; i < del; i++ {
-		err = c.Remove(bson.M{"i":fmt.Sprint(indexGenerator(num))})
-		if err != nil { log.Fatalln(err)}
-	}
+func (c *MayCollect)removeDataBase() {
+	err := c.Database.DropDatabase()
+	if err != nil { log.Fatalln(err)}
+	return
 }
 
-func (c *MayCollect)findInCollect() {
+func (c *MayCollect)findInCollect(n int) {
 	var rez DateForTest
 
-	del := num/10
-	for i :=1 ; i < del; i++ {
+	for i :=1 ; i < n; i++ {
 		c.Find(bson.M{"i":fmt.Sprint(indexGenerator(num))}).One(&rez)
 
 	}
 }
 
-func findInCollection(c *mgo.Collection, q interface{}, r interface{}) {
-	err := c.Find(q).All(r)
-	if err != nil {
-		CLog.PrintLog(true, err)
+func (c *MayCollect)deleteFromCollect(n int) {
+	var err error
+
+	for i :=1 ; i < n; i++ {
+		err = c.Remove(bson.M{"i":fmt.Sprint(indexGenerator(num))})
+		if err != nil { log.Fatalln(err)}
 	}
-	return
 }
+
+//func findInCollection(c *mgo.Collection, q interface{}, r interface{}) {
+//	err := c.Find(q).All(r)
+//	if err != nil {
+//		log.Println(err)
+//	}
+//	return
+//}
 
 func initConnection(ip string) (c *mgo.Collection) {
 	session, err := mgo.Dial(ip)
