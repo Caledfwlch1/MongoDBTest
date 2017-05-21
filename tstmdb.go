@@ -9,19 +9,23 @@ import (
 	"math/rand"
 )
 
+const data  = "glhs'gljhs;dgjh'sdg'sdlfgb's;dfghpdodkpuhfd ihpritjhpifgjpf  ognborgnbirnogf;gkjfgnbogbogifnb ;j og or ognbofgbnf ofgjnbognbfgnblm ;ldfkgbfkglfgbn okgnlkdfglnf okfdng fd;gk fsd;ldkf ;dkg'fndf;lkgb;lfbn;lfkblsf b ;lkdfg;lkf;sl ; nf;dlkg;dfklgnnb;slfgbdmfgn;lkdjfhirjhkkfgl;nkdgfjhkfgnb;lfkk  ;lkgnblkgblk ;kgnbl'krnb r;onrkbkrnnlf ;ofgnb';fb;kfjgh;f ;jngfkngkbnfk k n'kkffl okngkkbs'kfb'dkfgfblf "
+
 var (
-	ip	string
-	num	int
-	ins	int
-	remove	bool
+	ip			string
+	num, op			int
+	remove, ins, del, prep	bool
 )
 
 
 func init() {
 	flag.StringVar(&ip, "ip", "127.0.0.1", "ip-address (default : 127.0.0.1)")
 	flag.IntVar(&num, "n", 1000, "number of requests (default: 1000)")
-	flag.IntVar(&ins, "i", 100, "number of inserts (default : 100)")
+	flag.IntVar(&op, "o", 100, "number of operations (default : 100)")
 	flag.BoolVar(&remove, "r", false, "remove database (default: false)")
+	flag.BoolVar(&ins, "i", true, "insert the documents into database (default: true)")
+	flag.BoolVar(&del, "d", true, "delete the documents database (default: true)")
+	flag.BoolVar(&prep, "p", true, "preparing database (default: true)")
 }
 
 type DateForTest struct {
@@ -41,8 +45,11 @@ func main() {
 	fmt.Println("Current settings:")
 	fmt.Println("ip-address: ", ip)
 	fmt.Println("number of requests: ", num)
-	fmt.Println("number of inserts: ", ins)
+	fmt.Println("number of operations: ", op)
 	fmt.Println("remove database: ", remove)
+	fmt.Println("preparing database: ", prep)
+	fmt.Println("insert the documents into database: ", ins)
+	fmt.Println("delete the documents database: ", del)
 
 	fmt.Println("\nConnecting to the database...")
 	collect := MayCollect{initConnection(ip)}
@@ -50,17 +57,27 @@ func main() {
 
 	go dataGenerator(writeToDB)
 
-	fmt.Println("Preparing the database...")
-	collect.insertToCollect(writeToDB, num)
+	if prep {
+		fmt.Println("Preparing the database...")
+		fmt.Printf("The %d documents added.\n",
+			collect.insertToCollect(writeToDB, num))
+	}
 
 	fmt.Println("Finding in the database...")
-	collect.findInCollect(ins)
+	fmt.Printf("The %d documents found.\n",
+	collect.findInCollect(op))
 
-	fmt.Println("Deleting from the database...")
-	collect.deleteFromCollect(ins)
+	if del {
+		fmt.Println("Deleting from the database...")
+		fmt.Printf("The %d documents deleted.\n",
+			collect.deleteFromCollect(op))
+	}
 
-	fmt.Println("Inserting to the database...")
-	collect.insertToCollect(writeToDB, ins)
+	if ins {
+		fmt.Println("Inserting to the database...")
+		fmt.Printf("The %d documents inserted.\n",
+			collect.insertToCollect(writeToDB, op))
+	}
 
 	if remove {
 		fmt.Println("Removing the database...")
@@ -70,60 +87,70 @@ func main() {
 	return
 }
 
-func (c *MayCollect)insertToCollect(writeToDB <- chan DateForTest, n int) {
+func (c *MayCollect)insertToCollect(writeToDB <- chan DateForTest, n int) int {
 
-	i := 1
+	i := 0
 	for v := range writeToDB {
-		if i > n { break }
-		err := c.Insert(v)
-		if err != nil {
-			log.Fatalln(err)
-		}
 		i++
+		if i > n { i--; break }
+		err := c.Insert(bson.M{ "i": v.i, "text": v.s})
+		if err != nil {
+			log.Fatalln("Insert into DB: ", err)
+		}
 	}
-	return
+	return i
 }
 
 func (c *MayCollect)removeDataBase() {
 	err := c.Database.DropDatabase()
-	if err != nil { log.Fatalln(err)}
+	if err != nil { log.Fatalln("Droping DB: ", err)}
 	return
 }
 
-func (c *MayCollect)findInCollect(n int) {
-	var rez DateForTest
-
-	for i :=1 ; i < n; i++ {
-		c.Find(bson.M{"i":fmt.Sprint(indexGenerator(num))}).One(&rez)
-
-	}
-}
-
-func (c *MayCollect)deleteFromCollect(n int) {
+func (c *MayCollect)findInCollect(n int) int {
+	var rez interface{}
 	var err error
 
-	for i :=1 ; i < n; i++ {
-		err = c.Remove(bson.M{"i":fmt.Sprint(indexGenerator(num))})
-		if err != nil { log.Fatalln(err)}
+	k:=0
+	for i :=0 ; i < n; i++ {
+		err =c.Find(bson.M{"i": indexGenerator(num)}).One(&rez)
+		if err == nil { k++ }
 	}
+	return k
 }
 
-//func findInCollection(c *mgo.Collection, q interface{}, r interface{}) {
-//	err := c.Find(q).All(r)
-//	if err != nil {
-//		log.Println(err)
-//	}
-//	return
-//}
+func (c *MayCollect)deleteFromCollect(n int) int {
+	var i int
+	q := c.Find(bson.M{})
+	max, err := c.Count()
+	if err != nil {log.Fatalln("Error detecting number of documents: ", err)}
 
-func initConnection(ip string) (c *mgo.Collection) {
+	for i =0 ; i < n; i++ {
+		var result interface{}
+
+		if max == 0 {
+			fmt.Println("No more documents for deleting.")
+			break
+		}
+
+		err = q.Skip(indexGenerator(max)).One(&result)
+		if err != nil { fmt.Println("Delete from DB: ", err)}
+
+		err = c.Remove(result)
+		if err != nil { fmt.Println("Delete from DB: ", err)}
+		max--
+	}
+	return i
+}
+
+func initConnection(ip string) *mgo.Collection {
 	session, err := mgo.Dial(ip)
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatalln("Initialize connection with DB: ", err)
 	}
 
 	db := session.DB("DBForTest")
-	c = db.C("Test")
+	c := db.C("Test")
 
 	return c
 }
@@ -134,7 +161,7 @@ func dataGenerator(writeToDB chan DateForTest) {
 	i = 1
 	for {
 		if i > int64(num) { i = 1 }
-		d = DateForTest{i, "sdfsdfhsdgsfg"}
+		d = DateForTest{i, data}
 		writeToDB <- d
 		i++
 	}
@@ -142,7 +169,17 @@ func dataGenerator(writeToDB chan DateForTest) {
 	return
 }
 
-func indexGenerator(i int) (j int) {
-	rand.Seed(int64(i))
+func indexGenerator(i int) int {
 	return rand.Intn(i)
 }
+
+
+
+
+//func findInCollection(c *mgo.Collection, q interface{}, r interface{}) {
+//	err := c.Find(q).All(r)
+//	if err != nil {
+//		log.Println(err)
+//	}
+//	return
+//}
