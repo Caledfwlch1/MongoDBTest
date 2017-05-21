@@ -9,7 +9,7 @@ import (
 	"math/rand"
 )
 
-const data  = "glhs'gljhs;dgjh'sdg'sdlfgb's;dfghpdodkpuhfd ihpritjhpifgjpf  ognborgnbirnogf;gkjfgnbogbogifnb ;j og or ognbofgbnf ofgjnbognbfgnblm ;ldfkgbfkglfgbn okgnlkdfglnf okfdng fd;gk fsd;ldkf ;dkg'fndf;lkgb;lfbn;lfkblsf b ;lkdfg;lkf;sl ; nf;dlkg;dfklgnnb;slfgbdmfgn;lkdjfhirjhkkfgl;nkdgfjhkfgnb;lfkk  ;lkgnblkgblk ;kgnbl'krnb r;onrkbkrnnlf ;ofgnb';fb;kfjgh;f ;jngfkngkbnfk k n'kkffl okngkkbs'kfb'dkfgfblf "
+const data  = "glhs'gljhs;dgjh'sdg'sdlfgb's;dfghpdodkpuhfd ihpritjhpifgjpf  ognborgnbirnogf;gkjfgnbogbogifnb ;j og or ognbofgbnf ofgjnbognbfgnblm ;ldfkgbfkglfgbn okgnlkdfglnf okfdng fd;gk fsd;ldkf ;dkg'fndf;lkgb;lfbn;lfkblsf b ;lkdfg;lkf;sl ; nf;dlkg;dfklgnnb;slfgbdmfgn;lkdjfhirjhkkfgl;nkdgfjhkfgnb;lfkk  ;lkgnblkgblk ;kgnbl'krnb r;onrkbkrnnlf ;ofgnb';fb;kfjgh;f ;jngfkngkbnfk k n'kkfflglhs'gljhs;dgjh'sdg'sdlfgb's;dfghpdodkpuhfd ihpritjhpifgjpf  ognborgnbirnogf;gkjfgnbogbogifnb ;j og or ognbofgbnf ofgjnbognbfgnblm ;ldfkgbfkglfgbn okgnlkdfglnf okfdng fd;gk fsd;ldkf ;dkg'fndf;lkgb;lfbn;lfkblsf b ;lkdfg;lkf;sl ; nf;dlkg;dfklgnnb;slfgbdmfgn;lkdjfhirjhkkfgl;nkdgfjhkfgnb;lfkk  ;lkgnblkgblk ;kgnbl'krnb r;onrkbkrnnlf ;ofgnb';fb;kfjgh;f ;jngfkngkbnfk k n'kkffl okngkkbs'kfb'dkfgfblf  okngkkbs'kfb'dkfgfblf glhs'gljhs;dgjh'sdg'sdlfgb's;dfghpdodkpuhfd ihpritjhpifgjpf  ognborgnbirnogf;gkjfgnbogbogifnb ;j og or ognbofgbnf ofgjnbognbfgnblm ;ldfkgbfkglfgbn okgnlkdfglnf okfdng fd;gk fsd;ldkf ;dkg'fndf;lkgb;lfbn;lfkblsf b ;lkdfg;lkf;sl ; nf;dlkg"
 
 var (
 	ip			string
@@ -90,15 +90,16 @@ func main() {
 func (c *MayCollect)insertToCollect(writeToDB <- chan DateForTest, n int) int {
 
 	i := 0
+	k := 0
 	for v := range writeToDB {
 		i++
-		if i > n { i--; break }
-		err := c.Insert(bson.M{ "i": v.i, "text": v.s})
+		if i > n { break }
+		err := c.Insert(bson.M{"i": v.i, "text": v.s})
 		if err != nil {
 			log.Fatalln("Insert into DB: ", err)
-		}
+		} else { k++ }
 	}
-	return i
+	return k
 }
 
 func (c *MayCollect)removeDataBase() {
@@ -113,19 +114,19 @@ func (c *MayCollect)findInCollect(n int) int {
 
 	k:=0
 	for i :=0 ; i < n; i++ {
-		err =c.Find(bson.M{"i": indexGenerator(num)}).One(&rez)
+		err = c.Find(bson.M{"i": indexGenerator(num)}).One(&rez)
 		if err == nil { k++ }
 	}
 	return k
 }
 
 func (c *MayCollect)deleteFromCollect(n int) int {
-	var i int
+	k := 0
 	q := c.Find(bson.M{})
 	max, err := c.Count()
 	if err != nil {log.Fatalln("Error detecting number of documents: ", err)}
 
-	for i =0 ; i < n; i++ {
+	for i :=0 ; i < n; i++ {
 		var result interface{}
 
 		if max == 0 {
@@ -137,10 +138,11 @@ func (c *MayCollect)deleteFromCollect(n int) int {
 		if err != nil { fmt.Println("Delete from DB: ", err)}
 
 		err = c.Remove(result)
-		if err != nil { fmt.Println("Delete from DB: ", err)}
+		if err != nil { fmt.Println("Delete from DB: ", err)
+		} else { k++ }
 		max--
 	}
-	return i
+	return k
 }
 
 func initConnection(ip string) *mgo.Collection {
