@@ -14,7 +14,7 @@ const data  = "glhs'gljhs;dgjh'sdg'sdlfgb's;dfghpdodkpuhfd ihpritjhpifgjpf  ognb
 var (
 	ip			string
 	num, op			int
-	remove, ins, del, prep	bool
+	remove, ins, del, prep, fin	bool
 )
 
 
@@ -26,6 +26,7 @@ func init() {
 	flag.BoolVar(&ins, "i", true, "insert the documents into database (default: true)")
 	flag.BoolVar(&del, "d", true, "delete the documents database (default: true)")
 	flag.BoolVar(&prep, "p", true, "preparing database (default: true)")
+	flag.BoolVar(&fin, "f", true, "finding database (default: true)")
 }
 
 type DateForTest struct {
@@ -62,10 +63,11 @@ func main() {
 		fmt.Printf("The %d documents added.\n",
 			collect.insertToCollect(writeToDB, num))
 	}
-
-	fmt.Println("Finding in the database...")
-	fmt.Printf("The %d documents found.\n",
-	collect.findInCollect(op))
+	if fin {
+		fmt.Println("Finding in the database...")
+		fmt.Printf("The %d documents found.\n",
+			collect.findInCollect(op))
+	}
 
 	if del {
 		fmt.Println("Deleting from the database...")
@@ -153,6 +155,9 @@ func initConnection(ip string) *mgo.Collection {
 
 	db := session.DB("DBForTest")
 	c := db.C("Test")
+
+	err = c.EnsureIndexKey("i")
+	if err != nil { fmt.Println("Error creating/opening index: ", err)}
 
 	return c
 }
