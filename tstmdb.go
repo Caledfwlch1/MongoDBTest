@@ -86,6 +86,7 @@ func main() {
 		collect.removeDataBase()
 	}
 
+	fmt.Println("Test done.")
 	return
 }
 
